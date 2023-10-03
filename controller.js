@@ -4,15 +4,17 @@ const catchAsyncErrors = require("./Middlewares/catchAsyncErrors");
 const axios = require("axios");
 const apiURL = process.env.API_URL;
 const adminSecret = process.env.API_SECRET;
+const cacheDuration = 300000;
+const cacheKey = (key) => `${key}`
 
-exports.getBlogData = catchAsyncErrors(async (req, res, next) => {
-
+const getBlogDataCache=async ()=>{
   const headers = {
     'x-hasura-admin-secret': adminSecret,
   };
+
   const response = await axios.get(apiURL, { headers });
   if (response.status >= 400) {
-    return next(new ErrorHandler(`API return an error`, 505));
+    throw new Error(`API returned an error`);
   }
   const { data } = response;
   const { blogs } = data;
@@ -30,17 +32,20 @@ exports.getBlogData = catchAsyncErrors(async (req, res, next) => {
     uniqueBlogTitles: uniqueTitles.map((blog) => blog.title),
   };
 
+  return analyticsResponse;
+};
+
+const memoizedGetBlogData = _.memoize(getBlogDataCache, () => 'analyticsResults', cacheDuration);
+
+exports.getBlogData = catchAsyncErrors(async (req, res, next) => {
+
+  const analyticsResponse = await memoizedGetBlogData();
+  
   res.json(analyticsResponse);
 })
 
-exports.blogSearch = catchAsyncErrors(async (req, res, next) => {
-  let query = req.query.query;
-  console.log(query);
-  if (!query) {
-    return next(new ErrorHandler('Query parameter is required', 400));
-  }
-  query=query.toLowerCase();
 
+const blogSearchCache= async(query)=>{
   const headers = {
     'x-hasura-admin-secret': adminSecret,
   };
@@ -58,6 +63,20 @@ exports.blogSearch = catchAsyncErrors(async (req, res, next) => {
     const title=blog.title.toLowerCase();
     return title.includes(query);
   });
+  return searchResults;
+}
+
+const memoizedBlogSearch= _.memoize(blogSearchCache,(key) => cacheKey(key),cacheDuration);
+
+exports.getBlogSearch = catchAsyncErrors(async (req, res, next) => {
+  let query = req.query.query;
+  console.log(query);
+  if (!query) {
+    return next(new ErrorHandler('Query parameter is required', 400));
+  }
+  query=query.toLowerCase();
+
+  const searchResults= await memoizedBlogSearch(query);
 
   res.json(searchResults);
 })
