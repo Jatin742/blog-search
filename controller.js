@@ -4,7 +4,7 @@ const catchAsyncErrors = require("./Middlewares/catchAsyncErrors");
 const axios = require("axios");
 const apiURL = process.env.API_URL;
 const adminSecret = process.env.API_SECRET;
-const cacheDuration = 300000;
+const cacheDuration = 3000000000;
 const cacheKey = (key) => `${key}`
 
 const getBlogDataCache=async ()=>{
